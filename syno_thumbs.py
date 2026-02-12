@@ -206,6 +206,12 @@ def process_file(
 
     ea_subdir.mkdir(parents=True, exist_ok=True)
 
+    # Skip entirely if all three thumbnails already exist
+    if all((ea_subdir / f"SYNOPHOTO_THUMB_{s}.jpg").is_file() for s in ("SM", "M", "XL")):
+        if debug:
+            print(f"    (all thumbs exist, skipped)")
+        return True
+
     info = get_media_info_ffprobe(media_path, ffprobe_cmd, ffmpeg_cmd)
     if not info:
         print(f"Warning: could not get dimensions for {media_path}", file=sys.stderr)
@@ -223,6 +229,11 @@ def process_file(
             tw, th = scale_args(w, h, size_spec)
         out = ea_subdir / f"SYNOPHOTO_THUMB_{suffix}.jpg"
         fail_path = ea_subdir / f"SYNOPHOTO_THUMB_{suffix}.fail"
+        if out.is_file():
+            fail_path.unlink(missing_ok=True)
+            if debug:
+                print(f"    exists: {name}/{out.name}")
+            return True
         ok = run_ffmpeg_thumb(media_path, out, tw, th, is_video, ffmpeg_cmd, seek=video_seek)
         if ok:
             fail_path.unlink(missing_ok=True)  # no .fail = thumbnail ready
