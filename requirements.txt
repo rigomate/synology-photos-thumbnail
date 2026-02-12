@@ -1,0 +1,2 @@
+# No Python dependencies required; script uses only stdlib + ffmpeg.
+# ffmpeg must be installed on the system (e.g. apt install ffmpeg).
