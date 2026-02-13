@@ -2,17 +2,10 @@
 
 Generates **@eaDir** thumbnails for photos and videos (SYNOPHOTO_THUMB_SM, M, XL only). When a thumbnail is created successfully, any matching `.fail` file is removed so that absence of `.fail` means the thumbnail is ready.
 
-## Requirements
+### Synology NAS
 
-- **Python 3.8+** (stdlib only)
-- **ffmpeg** on your PATH (used for thumbnails and probe)
-
-Install ffmpeg if needed:
-
-```bash
-# Debian/Ubuntu
-sudo apt install ffmpeg
-```
+- **Install the community version of ffmpeg7** on your Synology (e.g. from Package Center or SynoCommunity). The DSM-built-in ffmpeg has ffprobe and many decoders (e.g. H.264) disabled, so video thumbnails will fail without ffmpeg7.
+- **Run the script on the Synology** (e.g. via SSH). The generated `@eaDir` folders must live next to your media on the NAS so Synology Photos (and DSM) can read and use the thumbnails.
 
 ## Usage
 
@@ -35,6 +28,23 @@ Options:
 | `--ea-dir PATH` | Put @eaDir elsewhere (default: `<directory>/@eaDir`) |
 | `--video-seek SECONDS` | Time in seconds for video thumbnail frame (default: 0) |
 | `--dry-run` | Print what would be done without writing files |
+| `--debug` | Print each created or existing thumbnail file |
+
+### Running on a whole photo tree: `run_all_thumbs.sh`
+
+To generate thumbnails in **every directory** under a photo root (e.g. `PhotoLibrary/2020/01/01`, `2021/01/02`, …), use the shell script. It runs `syno_thumbs.py` in each directory and does not descend into `@eaDir` folders.
+
+```bash
+./run_all_thumbs.sh /path/to/PhotoLibrary
+```
+
+Example (Synology):
+
+```bash
+./run_all_thumbs.sh /volume1/homes/user/Photos/PhotoLibrary
+```
+
+Keep `run_all_thumbs.sh` in the same directory as `syno_thumbs.py`.
 
 ## Output layout (template from your folder)
 
