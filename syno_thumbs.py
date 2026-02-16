@@ -208,7 +208,6 @@ def run_ffmpeg_thumb(
         cmd += ["-ss", str(seek), "-i", str(input_path), "-vframes", "1"]
         cmd += ["-vf", scale, "-q:v", "3", str(output_path)]
     else:
-        print("using convert")
         cmd = ["convert"]
         cmd += ["-auto-orient", "-thumbnail", str(width), input_path, output_path]
         
