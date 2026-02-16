@@ -92,6 +92,41 @@ def get_media_info_ffprobe(path: Path, ffprobe_cmd: list[str], ffmpeg_cmd: list[
                 break
     except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
         pass
+    # Fallback 2: ImageMagick identify (works for most images including HEIC if supported)
+    try:
+        out = subprocess.run(
+            ["identify", "-format", "%w,%h", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if out.returncode == 0:
+            line = (out.stdout or "").strip()
+            if line and "," in line:
+                w_str, h_str = line.split(",", 1)
+                w, h = int(w_str), int(h_str)
+                if w > 0 and h > 0:
+                    return {"width": w, "height": h, "duration": None}
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+        pass
+
+    # Fallback 3: heif-info (for HEIC files)
+    try:
+        out = subprocess.run(
+            ["heif-info", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if out.returncode == 0:
+            for line in (out.stdout or "").splitlines():
+                m = re.search(r"size:\s*(\d+)\s*x\s*(\d+)", line.lower())
+                if m:
+                    w, h = int(m.group(1)), int(m.group(2))
+                    if w > 0 and h > 0:
+                        return {"width": w, "height": h, "duration": None}
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+        pass
     return None
 
 
@@ -172,9 +207,15 @@ def run_ffmpeg_thumb(
     ]
     if is_video:
         cmd += ["-ss", str(seek), "-i", str(input_path), "-vframes", "1"]
+        cmd += ["-vf", scale, "-q:v", "3", str(output_path)]
     else:
-        cmd += ["-i", str(input_path)]
-    cmd += ["-vf", scale, "-q:v", "3", str(output_path)]
+        if input_path.suffix.lower() == ".heic":
+            cmd = ["heif-thumbnailer"]
+            cmd += ["-s", str(width), input_path, output_path]
+        else:
+            cmd = ["convert"]
+            cmd += ["-auto-orient", "-thumbnail", str(width), input_path, output_path]
+        
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         return r.returncode == 0 and output_path.is_file()
