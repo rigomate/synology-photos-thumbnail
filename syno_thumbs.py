@@ -29,8 +29,8 @@ SIZE_XL_SHORT = 1280
 SIZE_VIDEO_SM_LONG = 427
 
 # Synology package with full codec support (optional)
-FFMPEG7_BIN = Path("/var/packages/ffmpeg7/target/bin/ffmpeg")
-FFMPEG7_PROBE = Path("/var/packages/ffmpeg7/target/bin/ffprobe")
+FFMPEG7_BIN = Path("/home/mester/bin/ffmpeg/bin/ffmpeg")
+FFMPEG7_PROBE = Path("/home/mester/bin/ffmpeg/bin/ffprobe")
 
 
 def resolve_ffmpeg_commands() -> tuple[list[str], list[str]]:
@@ -47,86 +47,92 @@ def resolve_ffmpeg_commands() -> tuple[list[str], list[str]]:
 
 def get_media_info_ffprobe(path: Path, ffprobe_cmd: list[str], ffmpeg_cmd: list[str]) -> dict | None:
     """Get width, height via ffprobe (or ffmpeg -i fallback when ffprobe is disabled, e.g. on Synology NAS)."""
-    # Try ffprobe first (not available on some NAS builds: --disable-ffprobe)
-    try:
-        out = subprocess.run(
-            ffprobe_cmd
-            + [
-                "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=width,height",
-                "-of", "csv=p=0",
-                str(path),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if out.returncode == 0:
-            line = (out.stdout or "").strip().splitlines()[0]
-            if line:
-                parts = line.split(",")
-                w = int(parts[0]) if len(parts) > 0 and parts[0].strip().isdigit() else None
-                h = int(parts[1]) if len(parts) > 1 and parts[1].strip().isdigit() else None
-                if w and h:
-                    return {"width": w, "height": h, "duration": None}
-    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-        pass
+    ext = path.suffix.lower()
+    is_video = ext in VIDEO_EXTS
+    is_photo = ext in PHOTO_EXTS
+    
+    if is_video:
+        # Try ffprobe first (not available on some NAS builds: --disable-ffprobe)
+        try:
+            out = subprocess.run(
+                ffprobe_cmd
+                + [
+                    "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height",
+                    "-of", "csv=p=0",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if out.returncode == 0:
+                line = (out.stdout or "").strip().splitlines()[0]
+                if line:
+                    parts = line.split(",")
+                    w = int(parts[0]) if len(parts) > 0 and parts[0].strip().isdigit() else None
+                    h = int(parts[1]) if len(parts) > 1 and parts[1].strip().isdigit() else None
+                    if w and h:
+                        return {"width": w, "height": h, "duration": None}
+        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+            pass
 
-    # Fallback: parse "Stream #0:0: Video: ... 1920x1080 ..." from ffmpeg -i stderr
-    try:
-        out = subprocess.run(
-            ffmpeg_cmd + ["-i", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        err = (out.stderr or "") + (out.stdout or "")
-        for line in err.splitlines():
-            if "Video:" in line or "video:" in line:
-                m = re.search(r"(\d{2,})\s*x\s*(\d{2,})", line)
-                if m:
-                    w, h = int(m.group(1)), int(m.group(2))
+        # Fallback: parse "Stream #0:0: Video: ... 1920x1080 ..." from ffmpeg -i stderr
+        try:
+            out = subprocess.run(
+                ffmpeg_cmd + ["-i", str(path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            err = (out.stderr or "") + (out.stdout or "")
+            for line in err.splitlines():
+                if "Video:" in line or "video:" in line:
+                    m = re.search(r"(\d{2,})\s*x\s*(\d{2,})", line)
+                    if m:
+                        w, h = int(m.group(1)), int(m.group(2))
+                        if w > 0 and h > 0:
+                            return {"width": w, "height": h, "duration": None}
+                    break
+        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+            pass
+    else:
+        # Fallback 2: ImageMagick identify (works for most images including HEIC if supported)
+        try:
+            out = subprocess.run(
+                ["identify", "-format", "%w,%h", str(path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if out.returncode == 0:
+                line = (out.stdout or "").strip()
+                if line and "," in line:
+                    w_str, h_str = line.split(",", 1)
+                    w, h = int(w_str), int(h_str)
                     if w > 0 and h > 0:
                         return {"width": w, "height": h, "duration": None}
-                break
-    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-        pass
-    # Fallback 2: ImageMagick identify (works for most images including HEIC if supported)
-    try:
-        out = subprocess.run(
-            ["identify", "-format", "%w,%h", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if out.returncode == 0:
-            line = (out.stdout or "").strip()
-            if line and "," in line:
-                w_str, h_str = line.split(",", 1)
-                w, h = int(w_str), int(h_str)
-                if w > 0 and h > 0:
-                    return {"width": w, "height": h, "duration": None}
-    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-        pass
+        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+            pass
 
-    # Fallback 3: heif-info (for HEIC files)
-    try:
-        out = subprocess.run(
-            ["heif-info", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if out.returncode == 0:
-            for line in (out.stdout or "").splitlines():
-                m = re.search(r"size:\s*(\d+)\s*x\s*(\d+)", line.lower())
-                if m:
-                    w, h = int(m.group(1)), int(m.group(2))
-                    if w > 0 and h > 0:
-                        return {"width": w, "height": h, "duration": None}
-    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-        pass
+        # Fallback 3: heif-info (for HEIC files)
+        try:
+            out = subprocess.run(
+                ["heif-info", str(path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if out.returncode == 0:
+                for line in (out.stdout or "").splitlines():
+                    m = re.search(r"size:\s*(\d+)\s*x\s*(\d+)", line.lower())
+                    if m:
+                        w, h = int(m.group(1)), int(m.group(2))
+                        if w > 0 and h > 0:
+                            return {"width": w, "height": h, "duration": None}
+        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+            pass
     return None
 
 
@@ -210,11 +216,14 @@ def run_ffmpeg_thumb(
         cmd += ["-vf", scale, "-q:v", "3", str(output_path)]
     else:
         if input_path.suffix.lower() == ".heic":
-            cmd = ["heif-thumbnailer"]
-            cmd += ["-s", str(width), input_path, output_path]
-        else:
-            cmd = ["convert"]
-            cmd += ["-auto-orient", "-thumbnail", str(width), input_path, output_path]
+            cmdheif = ["heif-convert"]
+            cmdheif += [input_path, output_path]
+            try:
+                r = subprocess.run(cmdheif, capture_output=True, text=True, timeout=60)
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                return False
+        cmd = ["convert"]
+        cmd += ["-auto-orient", "-thumbnail", str(width), input_path, output_path]
         
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -229,6 +238,7 @@ def process_file(
     video_seek: float,
     dry_run: bool,
     debug: bool,
+    force: bool,
     ffmpeg_cmd: list[str],
     ffprobe_cmd: list[str],
 ) -> bool:
@@ -248,7 +258,7 @@ def process_file(
     ea_subdir.mkdir(parents=True, exist_ok=True)
 
     # Skip entirely if all three thumbnails already exist
-    if all((ea_subdir / f"SYNOPHOTO_THUMB_{s}.jpg").is_file() for s in ("SM", "M", "XL")):
+    if not force and all((ea_subdir / f"SYNOPHOTO_THUMB_{s}.jpg").is_file() for s in ("SM", "M", "XL")):
         if debug:
             print(f"    (all thumbs exist, skipped)")
         return True
@@ -270,7 +280,7 @@ def process_file(
             tw, th = scale_args(w, h, size_spec)
         out = ea_subdir / f"SYNOPHOTO_THUMB_{suffix}.jpg"
         fail_path = ea_subdir / f"SYNOPHOTO_THUMB_{suffix}.fail"
-        if out.is_file():
+        if not force and out.is_file():
             fail_path.unlink(missing_ok=True)
             if debug:
                 print(f"    exists: {name}/{out.name}")
@@ -327,6 +337,11 @@ def main() -> int:
         action="store_true",
         help="Print each created thumbnail or .fail file",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Print each created thumbnail or .fail file",
+    )
     args = parser.parse_args()
 
     directory = args.directory.resolve()
@@ -357,6 +372,7 @@ def main() -> int:
                 video_seek=args.video_seek,
                 dry_run=args.dry_run,
                 debug=args.debug,
+                force=args.force,
                 ffmpeg_cmd=ffmpeg_cmd,
                 ffprobe_cmd=ffprobe_cmd,
             )

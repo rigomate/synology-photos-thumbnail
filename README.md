@@ -7,6 +7,42 @@ Generates **@eaDir** thumbnails for photos and videos (SYNOPHOTO_THUMB_SM, M, XL
 - **Install the community version of ffmpeg7** on your Synology (e.g. from Package Center or SynoCommunity). The DSM-built-in ffmpeg has ffprobe and many decoders (e.g. H.264) disabled, so video thumbnails will fail without ffmpeg7.
 - **Run the script on the Synology** (e.g. via SSH). The generated `@eaDir` folders must live next to your media on the NAS so Synology Photos (and DSM) can read and use the thumbnails.
 
+### Synology Package (SPK)
+
+A package structure is included in the `package/` directory for creating a Synology SPK package. This allows installation via Package Center.
+
+**To build the package:**
+```bash
+cd package
+make package
+```
+
+This creates `syno-thumbs-1.0.0-noarch.spk` which can be installed via Package Center or manually with:
+```bash
+sudo synopkg install syno-thumbs-1.0.0-noarch.spk
+```
+
+After installation, scripts are available as:
+- `/usr/local/bin/syno-thumbs`
+- `/usr/local/bin/run-all-thumbs`
+- `/usr/local/bin/syno-thumbs-daemon` (for scheduled runs)
+
+### Configuration
+
+The package includes a **configuration wizard** during installation where you can:
+- Enable/disable automatic thumbnail generation
+- Configure folders to process
+- Set a schedule (cron format)
+- Configure video thumbnail settings
+
+After installation, edit `/var/packages/syno-thumbs/etc/syno_thumbs.conf` to change settings.
+
+**Automatic scheduling:** If enabled, thumbnails are generated automatically on the configured schedule using cron.
+
+See `package/CONFIG_GUIDE.md` for detailed configuration options.
+
+See `package/README.md` for details on package structure and SynoCommunity submission.
+
 ## Usage
 
 From the folder that contains your media (and where you want `@eaDir`):
