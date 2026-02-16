@@ -29,8 +29,8 @@ SIZE_XL_SHORT = 1280
 SIZE_VIDEO_SM_LONG = 427
 
 # Synology package with full codec support (optional)
-FFMPEG7_BIN = Path("/home/mester/bin/ffmpeg/bin/ffmpeg")
-FFMPEG7_PROBE = Path("/home/mester/bin/ffmpeg/bin/ffprobe")
+FFMPEG7_BIN = Path("/var/packages/ffmpeg7/target/bin/ffmpeg")
+FFMPEG7_PROBE = Path("/var/packages/ffmpeg7/target/bin/ffprobe")
 
 
 def resolve_ffmpeg_commands() -> tuple[list[str], list[str]]:
