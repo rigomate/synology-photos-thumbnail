@@ -188,7 +188,6 @@ def scale_args_video(width: int, height: int, size_spec: str) -> tuple[int, int]
     else:
         return width, height
 
-
 def run_ffmpeg_thumb(
     input_path: Path,
     output_path: Path,
@@ -209,12 +208,9 @@ def run_ffmpeg_thumb(
         cmd += ["-ss", str(seek), "-i", str(input_path), "-vframes", "1"]
         cmd += ["-vf", scale, "-q:v", "3", str(output_path)]
     else:
-        if input_path.suffix.lower() == ".heic":
-            cmd = ["heif-thumbnailer"]
-            cmd += ["-s", str(width), input_path, output_path]
-        else:
-            cmd = ["convert"]
-            cmd += ["-auto-orient", "-thumbnail", str(width), input_path, output_path]
+        print("using convert")
+        cmd = ["convert"]
+        cmd += ["-auto-orient", "-thumbnail", str(width), input_path, output_path]
         
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
