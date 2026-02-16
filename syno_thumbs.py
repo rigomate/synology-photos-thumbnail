@@ -225,6 +225,7 @@ def process_file(
     video_seek: float,
     dry_run: bool,
     debug: bool,
+    force: bool,
     ffmpeg_cmd: list[str],
     ffprobe_cmd: list[str],
 ) -> bool:
@@ -244,7 +245,7 @@ def process_file(
     ea_subdir.mkdir(parents=True, exist_ok=True)
 
     # Skip entirely if all three thumbnails already exist
-    if all((ea_subdir / f"SYNOPHOTO_THUMB_{s}.jpg").is_file() for s in ("SM", "M", "XL")):
+    if not force and all((ea_subdir / f"SYNOPHOTO_THUMB_{s}.jpg").is_file() for s in ("SM", "M", "XL")):
         if debug:
             print(f"    (all thumbs exist, skipped)")
         return True
@@ -323,6 +324,11 @@ def main() -> int:
         action="store_true",
         help="Print each created thumbnail or .fail file",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force thumbnail generation even if all three thumbnails already exist",
+    )
     args = parser.parse_args()
 
     directory = args.directory.resolve()
@@ -353,6 +359,7 @@ def main() -> int:
                 video_seek=args.video_seek,
                 dry_run=args.dry_run,
                 debug=args.debug,
+                force=args.force,
                 ffmpeg_cmd=ffmpeg_cmd,
                 ffprobe_cmd=ffprobe_cmd,
             )
