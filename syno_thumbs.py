@@ -82,7 +82,6 @@ def get_media_info_ffprobe(path: Path, ffprobe_cmd: list[str], ffmpeg_cmd: list[
                         return {"width": w, "height": h, "duration": None}
     except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
         pass
-    return None
     # Try ffprobe first (not available on some NAS builds: --disable-ffprobe)
     try:
         out = subprocess.run(
@@ -128,6 +127,7 @@ def get_media_info_ffprobe(path: Path, ffprobe_cmd: list[str], ffmpeg_cmd: list[
                 break
     except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
         pass
+    return None
 
 
 
@@ -209,6 +209,7 @@ def run_ffmpeg_thumb(
         cmd += ["-ss", str(seek), "-i", str(input_path), "-vframes", "1"]
         cmd += ["-vf", scale, "-q:v", "3", str(output_path)]
     else:
+        print("using convert size: " + str(width))
         cmd = ["convert"]
         cmd += ["-auto-orient", "-thumbnail", str(width), input_path, output_path]
         
@@ -251,6 +252,7 @@ def process_file(
         return True
 
     info = get_media_info_ffprobe(media_path, ffprobe_cmd, ffmpeg_cmd)
+    print(info)
     if not info:
         print(f"Warning: could not get dimensions for {media_path}", file=sys.stderr)
         return False
@@ -261,10 +263,12 @@ def process_file(
         return False
 
     def do_thumb(suffix: str, size_spec: str) -> bool:
+        print(size_spec)
         if is_video:
             tw, th = scale_args_video(w, h, size_spec)
         else:
             tw, th = scale_args(w, h, size_spec)
+        print(str(th) + " " + str(tw))
         out = ea_subdir / f"SYNOPHOTO_THUMB_{suffix}.jpg"
         fail_path = ea_subdir / f"SYNOPHOTO_THUMB_{suffix}.fail"
         
