@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 # Media extensions
-PHOTO_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".bmp", ".tiff", ".tif"}
+PHOTO_EXTS = {".heic"}
 VIDEO_EXTS = {".mov", ".mp4", ".avi", ".mkv", ".m4v", ".webm", ".wmv"}
 
 # Thumbnail sizes (from your template)
