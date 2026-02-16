@@ -267,7 +267,8 @@ def process_file(
             tw, th = scale_args(w, h, size_spec)
         out = ea_subdir / f"SYNOPHOTO_THUMB_{suffix}.jpg"
         fail_path = ea_subdir / f"SYNOPHOTO_THUMB_{suffix}.fail"
-        if out.is_file():
+        
+        if not force and out.is_file():
             fail_path.unlink(missing_ok=True)
             if debug:
                 print(f"    exists: {name}/{out.name}")
