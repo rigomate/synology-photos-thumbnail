@@ -47,6 +47,42 @@ def resolve_ffmpeg_commands() -> tuple[list[str], list[str]]:
 
 def get_media_info_ffprobe(path: Path, ffprobe_cmd: list[str], ffmpeg_cmd: list[str]) -> dict | None:
     """Get width, height via ffprobe (or ffmpeg -i fallback when ffprobe is disabled, e.g. on Synology NAS)."""
+    # Fallback 2: ImageMagick identify (works for most images including HEIC if supported)
+    try:
+        out = subprocess.run(
+            ["identify", "-format", "%w,%h", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if out.returncode == 0:
+            line = (out.stdout or "").strip()
+            if line and "," in line:
+                w_str, h_str = line.split(",", 1)
+                w, h = int(w_str), int(h_str)
+                if w > 0 and h > 0:
+                    return {"width": w, "height": h, "duration": None}
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+        pass
+
+    # Fallback 3: heif-info (for HEIC files)
+    try:
+        out = subprocess.run(
+            ["heif-info", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if out.returncode == 0:
+            for line in (out.stdout or "").splitlines():
+                m = re.search(r"size:\s*(\d+)\s*x\s*(\d+)", line.lower())
+                if m:
+                    w, h = int(m.group(1)), int(m.group(2))
+                    if w > 0 and h > 0:
+                        return {"width": w, "height": h, "duration": None}
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+        pass
+    return None
     # Try ffprobe first (not available on some NAS builds: --disable-ffprobe)
     try:
         out = subprocess.run(
@@ -92,42 +128,7 @@ def get_media_info_ffprobe(path: Path, ffprobe_cmd: list[str], ffmpeg_cmd: list[
                 break
     except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
         pass
-    # Fallback 2: ImageMagick identify (works for most images including HEIC if supported)
-    try:
-        out = subprocess.run(
-            ["identify", "-format", "%w,%h", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if out.returncode == 0:
-            line = (out.stdout or "").strip()
-            if line and "," in line:
-                w_str, h_str = line.split(",", 1)
-                w, h = int(w_str), int(h_str)
-                if w > 0 and h > 0:
-                    return {"width": w, "height": h, "duration": None}
-    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-        pass
 
-    # Fallback 3: heif-info (for HEIC files)
-    try:
-        out = subprocess.run(
-            ["heif-info", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if out.returncode == 0:
-            for line in (out.stdout or "").splitlines():
-                m = re.search(r"size:\s*(\d+)\s*x\s*(\d+)", line.lower())
-                if m:
-                    w, h = int(m.group(1)), int(m.group(2))
-                    if w > 0 and h > 0:
-                        return {"width": w, "height": h, "duration": None}
-    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-        pass
-    return None
 
 
 def scale_args(width: int, height: int, size_spec: str) -> tuple[int, int]:
